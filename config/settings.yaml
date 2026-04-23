@@ -1,17 +1,17 @@
-app:
-  name: nse-quant-screener
-  version: 0.1.0
-
-logging:
-  level: INFO
-
-data:
-  universe_source: data/raw/universe.csv
-  price_source: data/raw/prices.csv
-  fundamentals_source: data/raw/fundamentals.csv
-  metadata_source: data/raw/metadata.csv
-
-filters:
-  sector_whitelist:
-    - Financial Services
-    - Technology
+{
+  "app": {
+    "name": "nse-quant-screener",
+    "version": "0.1.0"
+  },
+  "logging": {
+    "level": "INFO"
+  },
+  "paths": {
+    "data_raw": "data/raw",
+    "data_processed": "data/processed",
+    "data_cache": "data/cache",
+    "outputs_reports": "outputs/reports",
+    "outputs_charts": "outputs/charts",
+    "outputs_tables": "outputs/tables"
+  }
+}

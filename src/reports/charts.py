@@ -5,10 +5,14 @@ from pathlib import Path
 from typing import Any
 
 
-def _save_empty_chart(path: Path, title: str, logger: logging.Logger) -> None:
+def _write_empty_chart_file(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"")
+
+
+def _save_placeholder_chart(path: Path, title: str, logger: logging.Logger) -> None:
     import matplotlib.pyplot as plt
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(8, 4))
     plt.title(title)
     plt.text(0.5, 0.5, "Insufficient data", ha="center", va="center")
@@ -16,27 +20,12 @@ def _save_empty_chart(path: Path, title: str, logger: logging.Logger) -> None:
     plt.tight_layout()
     plt.savefig(path)
     plt.close()
-    logger.warning("Created placeholder chart due to missing data: %s", path.name)
+    logger.warning("Created placeholder chart: %s", path.name)
 
 
 def generate_charts(ranked_stocks: Any, charts_dir: Path, logger: logging.Logger) -> dict[str, Path]:
-    """Generate required Phase 3 charts with warnings for missing columns."""
+    """Generate all required Phase 3 charts."""
     charts_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        import matplotlib.pyplot as plt
-    except ModuleNotFoundError as exc:
-        logger.warning("Matplotlib is unavailable (%s). Writing empty chart files.", exc)
-        files = {
-            "pe_hist_top_industries": charts_dir / "pe_hist_top_industries.png",
-            "pe_discount_vs_roe": charts_dir / "pe_discount_vs_roe.png",
-            "value_vs_momentum": charts_dir / "value_vs_momentum.png",
-            "sector_avg_total_score": charts_dir / "sector_avg_total_score.png",
-            "top20_total_score": charts_dir / "top20_total_score.png",
-        }
-        for path in files.values():
-            path.write_bytes(b"")
-        return files
 
     files = {
         "pe_hist_top_industries": charts_dir / "pe_hist_top_industries.png",
@@ -46,20 +35,28 @@ def generate_charts(ranked_stocks: Any, charts_dir: Path, logger: logging.Logger
         "top20_total_score": charts_dir / "top20_total_score.png",
     }
 
-    if ranked_stocks is None or getattr(ranked_stocks, "empty", True):
-        for name, path in files.items():
-            _save_empty_chart(path, name.replace("_", " ").title(), logger)
+    try:
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError as exc:
+        logger.warning("Matplotlib unavailable (%s). Writing empty chart files.", exc)
+        for path in files.values():
+            _write_empty_chart_file(path)
         return files
 
-    # 1) PE histogram for top industries
+    if ranked_stocks is None or getattr(ranked_stocks, "empty", True):
+        for name, path in files.items():
+            _save_placeholder_chart(path, name.replace("_", " ").title(), logger)
+        return files
+
+    # 1) PE histogram top industries
     if {"industry", "pe"}.issubset(ranked_stocks.columns):
         top_industries = ranked_stocks["industry"].value_counts().head(5).index
         subset = ranked_stocks[ranked_stocks["industry"].isin(top_industries)]
         plt.figure(figsize=(10, 6))
         for industry in top_industries:
-            pe_series = subset.loc[subset["industry"] == industry, "pe"].dropna()
-            if not pe_series.empty:
-                plt.hist(pe_series, bins=15, alpha=0.4, label=industry)
+            values = subset.loc[subset["industry"] == industry, "pe"].dropna()
+            if not values.empty:
+                plt.hist(values, bins=15, alpha=0.4, label=industry)
         plt.title("PE Histogram: Top Industries")
         plt.xlabel("PE")
         plt.ylabel("Count")
@@ -68,7 +65,7 @@ def generate_charts(ranked_stocks: Any, charts_dir: Path, logger: logging.Logger
         plt.savefig(files["pe_hist_top_industries"])
         plt.close()
     else:
-        _save_empty_chart(files["pe_hist_top_industries"], "PE Histogram: Top Industries", logger)
+        _save_placeholder_chart(files["pe_hist_top_industries"], "PE Histogram: Top Industries", logger)
 
     # 2) PE discount vs ROE
     if {"pe_discount", "roe"}.issubset(ranked_stocks.columns):
@@ -81,7 +78,7 @@ def generate_charts(ranked_stocks: Any, charts_dir: Path, logger: logging.Logger
         plt.savefig(files["pe_discount_vs_roe"])
         plt.close()
     else:
-        _save_empty_chart(files["pe_discount_vs_roe"], "PE Discount vs ROE", logger)
+        _save_placeholder_chart(files["pe_discount_vs_roe"], "PE Discount vs ROE", logger)
 
     # 3) Value vs momentum
     if {"value_score", "momentum_score"}.issubset(ranked_stocks.columns):
@@ -94,11 +91,15 @@ def generate_charts(ranked_stocks: Any, charts_dir: Path, logger: logging.Logger
         plt.savefig(files["value_vs_momentum"])
         plt.close()
     else:
-        _save_empty_chart(files["value_vs_momentum"], "Value Score vs Momentum Score", logger)
+        _save_placeholder_chart(files["value_vs_momentum"], "Value Score vs Momentum Score", logger)
 
-    # 4) Sector average total score
+    # 4) Sector avg total score
     if {"sector", "total_score"}.issubset(ranked_stocks.columns):
-        sector_avg = ranked_stocks.groupby("sector", as_index=False)["total_score"].mean().sort_values("total_score", ascending=False)
+        sector_avg = (
+            ranked_stocks.groupby("sector", as_index=False)["total_score"]
+            .mean()
+            .sort_values("total_score", ascending=False)
+        )
         plt.figure(figsize=(10, 6))
         plt.bar(sector_avg["sector"], sector_avg["total_score"])
         plt.title("Sector Average Total Score")
@@ -109,9 +110,9 @@ def generate_charts(ranked_stocks: Any, charts_dir: Path, logger: logging.Logger
         plt.savefig(files["sector_avg_total_score"])
         plt.close()
     else:
-        _save_empty_chart(files["sector_avg_total_score"], "Sector Average Total Score", logger)
+        _save_placeholder_chart(files["sector_avg_total_score"], "Sector Average Total Score", logger)
 
-    # 5) Top 20 total scores
+    # 5) Top 20 total score
     if {"symbol", "total_score"}.issubset(ranked_stocks.columns):
         top20 = ranked_stocks.sort_values("total_score", ascending=False).head(20)
         plt.figure(figsize=(12, 6))
@@ -124,6 +125,6 @@ def generate_charts(ranked_stocks: Any, charts_dir: Path, logger: logging.Logger
         plt.savefig(files["top20_total_score"])
         plt.close()
     else:
-        _save_empty_chart(files["top20_total_score"], "Top 20 Total Score", logger)
+        _save_placeholder_chart(files["top20_total_score"], "Top 20 Total Score", logger)
 
     return files

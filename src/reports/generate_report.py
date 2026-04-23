@@ -6,20 +6,22 @@ from typing import Any
 
 
 def _safe_len(frame: Any) -> int:
-    if frame is None:
-        return 0
-    return int(len(frame))
+    return 0 if frame is None else int(len(frame))
 
 
-def _format_table(frame: Any, columns: list[str], n: int = 10) -> str:
+def _table_as_markdown(frame: Any, columns: list[str], n: int) -> str:
     if frame is None or getattr(frame, "empty", True):
         return "_No data available._\n"
 
-    present_columns = [c for c in columns if c in frame.columns]
-    if not present_columns:
+    present = [col for col in columns if col in frame.columns]
+    if not present:
         return "_Required columns missing._\n"
 
-    return frame[present_columns].head(n).to_markdown(index=False) + "\n"
+    display = frame[present].head(n)
+    try:
+        return display.to_markdown(index=False) + "\n"
+    except Exception:
+        return "```\n" + display.to_string(index=False) + "\n```\n"
 
 
 def generate_markdown_report(
@@ -29,7 +31,7 @@ def generate_markdown_report(
     report_path: Path,
     logger: logging.Logger,
 ) -> Path:
-    """Generate Phase 3 markdown summary report."""
+    """Create the required Phase 3 summary markdown report."""
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
     raw_size = _safe_len(full_universe)
@@ -40,22 +42,20 @@ def generate_markdown_report(
     if cleaned_universe is not None and "industry" in getattr(cleaned_universe, "columns", []):
         industries_count = int(cleaned_universe["industry"].nunique())
     else:
-        logger.warning("Missing 'industry' column for industry count in report.")
+        logger.warning("Missing 'industry' column for industry count.")
 
-    top20 = ranked_stocks.sort_values("total_score", ascending=False) if ranked_stocks is not None and "total_score" in getattr(ranked_stocks, "columns", []) else ranked_stocks
+    top20 = ranked_stocks
+    if ranked_stocks is not None and "total_score" in getattr(ranked_stocks, "columns", []):
+        top20 = ranked_stocks.sort_values("total_score", ascending=False).head(20)
 
     top_industries_section = "_Required columns missing._\n"
     if ranked_stocks is not None and {"industry", "pe_discount"}.issubset(getattr(ranked_stocks, "columns", [])):
-        industry_counts = (
-            ranked_stocks.sort_values("pe_discount", ascending=False)
-            .groupby("industry")
-            .head(5)["industry"]
-            .value_counts()
-            .head(10)
-            .rename_axis("industry")
-            .reset_index(name="undervalued_names")
-        )
-        top_industries_section = industry_counts.to_markdown(index=False) + "\n"
+        temp = ranked_stocks.sort_values("pe_discount", ascending=False).groupby("industry").head(5)
+        counts = temp["industry"].value_counts().head(10).rename_axis("industry").reset_index(name="undervalued_names")
+        try:
+            top_industries_section = counts.to_markdown(index=False) + "\n"
+        except Exception:
+            top_industries_section = "```\n" + counts.to_string(index=False) + "\n```\n"
     else:
         logger.warning("Missing columns for top industries undervalued section.")
 
@@ -63,10 +63,10 @@ def generate_markdown_report(
     if ranked_stocks is not None and "category" in getattr(ranked_stocks, "columns", []):
         value_traps = ranked_stocks[ranked_stocks["category"] == "Potential Value Trap"]
     else:
-        logger.warning("Missing 'category' column for value trap section.")
+        logger.warning("Missing 'category' for value traps section.")
 
-    data_quality_notes = []
-    expected_columns = [
+    quality_notes: list[str] = []
+    expected = [
         "symbol",
         "sector",
         "industry",
@@ -79,15 +79,16 @@ def generate_markdown_report(
         "total_score",
         "category",
     ]
-    if ranked_stocks is None:
-        data_quality_notes.append("Ranked dataset is unavailable.")
-    else:
-        missing = [c for c in expected_columns if c not in ranked_stocks.columns]
-        if missing:
-            data_quality_notes.append(f"Missing ranked columns: {', '.join(missing)}")
 
-    if not data_quality_notes:
-        data_quality_notes.append("No major data quality issues detected in required report fields.")
+    if ranked_stocks is None:
+        quality_notes.append("Ranked dataset is unavailable.")
+    else:
+        missing = [col for col in expected if col not in ranked_stocks.columns]
+        if missing:
+            quality_notes.append("Missing ranked columns: " + ", ".join(missing))
+
+    if not quality_notes:
+        quality_notes.append("No major data quality issues detected in required report fields.")
 
     content = "\n".join(
         [
@@ -100,7 +101,7 @@ def generate_markdown_report(
             f"- Number of ranked stocks: **{ranked_count}**",
             "",
             "## Top 20 Ranked Stocks",
-            _format_table(
+            _table_as_markdown(
                 top20,
                 [
                     "symbol",
@@ -115,18 +116,18 @@ def generate_markdown_report(
                     "total_score",
                     "category",
                 ],
-                n=20,
+                20,
             ),
             "## Top Industries with Most Undervalued Names",
             top_industries_section,
             "## Top 10 Potential Value Traps",
-            _format_table(
+            _table_as_markdown(
                 value_traps,
                 ["symbol", "sector", "industry", "pe", "peer_median_pe", "quality_score", "total_score", "category"],
-                n=10,
+                10,
             ),
             "## Data Quality Notes",
-            *[f"- {note}" for note in data_quality_notes],
+            *[f"- {note}" for note in quality_notes],
             "",
         ]
     )

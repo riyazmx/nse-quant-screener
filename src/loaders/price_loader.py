@@ -43,7 +43,6 @@ class PriceLoader:
             daily_drift = annual_drift / 252.0
             daily_vol = annual_vol / np.sqrt(252.0)
 
-            # Mild deterministic seasonality + small random noise
             seasonal = 0.0003 * np.sin(2 * np.pi * t / 63.0)
             shocks = rng.normal(loc=0.0, scale=daily_vol, size=n)
 
@@ -51,7 +50,6 @@ class PriceLoader:
             log_price = np.log(base_price) + np.cumsum(log_returns)
             close = np.exp(log_price)
 
-            # Build OHLC around close
             prev_close = np.r_[close[0], close[:-1]]
             open_price = prev_close * (1.0 + rng.normal(0.0, 0.002, size=n))
 
@@ -59,7 +57,6 @@ class PriceLoader:
             high = np.maximum(open_price, close) * (1.0 + intraday_spread)
             low = np.minimum(open_price, close) * (1.0 - intraday_spread)
 
-            # Realistic varying volume
             volume_wave = 1.0 + 0.10 * np.sin(2 * np.pi * t / 42.0)
             volume_noise = rng.normal(1.0, 0.05, size=n)
             volume = np.maximum(1.0, avg_volume * volume_wave * volume_noise)

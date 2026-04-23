@@ -6,7 +6,7 @@ from src.utils.config import Config
 
 
 class MetadataLoader:
-    """Loads metadata for stocks in the universe."""
+    """Load metadata for stocks in the universe."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

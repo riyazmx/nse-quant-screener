@@ -6,7 +6,7 @@ from src.utils.config import Config
 
 
 class FundamentalsLoader:
-    """Loads fundamental metrics for the universe."""
+    """Load fundamental metrics for the universe."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

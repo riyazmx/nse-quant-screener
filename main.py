@@ -25,7 +25,7 @@ def _print_console_summary(full_universe: Any, cleaned_universe: Any, ranked_sto
         logger.warning("Missing 'industry' for console summary industry count.")
 
     print("\n=== Phase 3 Console Summary ===")
-    print(f"Raw universe size: {raw_size}")
+    print(f"Universe size: {raw_size}")
     print(f"Cleaned universe size: {cleaned_size}")
     print(f"Number of industries: {industries_count}")
     print(f"Ranked stocks count: {ranked_count}")

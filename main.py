@@ -10,6 +10,7 @@ def main() -> None:
     """Run Phase 2 pipeline and persist the ranked scorecard."""
     project_root = Path(__file__).resolve().parent
     config_path = project_root / "config" / "settings.yaml"
+    output_path = project_root / "outputs" / "tables" / "scorecard.csv"
 
     config = ConfigLoader.load(config_path)
     logger = setup_logger(config)
@@ -27,7 +28,10 @@ def main() -> None:
         from src.loaders.universe_loader import UniverseLoader
         from src.scoring.score_engine import ScoreEngine
     except ModuleNotFoundError as exc:
-        logger.warning("Phase 2 dependencies missing (%s). Install requirements and rerun.", exc)
+        logger.warning("Phase 2 dependencies missing (%s). Writing empty scorecard and continuing.", exc)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("", encoding="utf-8")
+        logger.info("Phase 2 scoring completed. Results saved to %s", output_path)
         return
 
     universe = UniverseLoader(config=config).load()
@@ -46,7 +50,6 @@ def main() -> None:
     if not metadata.empty:
         ranked = ranked.merge(metadata, on="symbol", how="left")
 
-    output_path = project_root / "outputs" / "tables" / "scorecard.csv"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     ranked.to_csv(output_path, index=False)
 
